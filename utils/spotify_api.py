@@ -1,106 +1,28 @@
-import spotipy
-from spotipy.oauth2 import SpotifyClientCredentials
-import os
-import logging
 
+import logging
+from urllib.parse import quote
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
-CLIENT_ID = os.getenv("SPOTIFY_CLIENT_ID", "YOUR_SPOTIFY_CLIENT_ID")  # Replace with your Spotify Client ID
-CLIENT_SECRET = os.getenv("SPOTIFY_CLIENT_SECRET", "YOUR_SPOTIFY_CLIENT_SECRET")  # Replace with your Spotify Client Secret
+def create_spotify_search_url(song_name, artist):
+    """
+    Create a Spotify search URL without using the Spotify API.
+    """
+    query = f"{song_name} {artist}"
+    encoded_query = quote(query)
 
-def get_spotify_client():
-    try:
-        auth_manager = SpotifyClientCredentials(
-            client_id=CLIENT_ID,
-            client_secret=CLIENT_SECRET
-        )
-        
-        sp = spotipy.Spotify(
-            auth_manager=auth_manager,
-            requests_timeout=20,
-            retries=3
-        )
-        
-        return sp
-    except Exception as e:
-        logger.error(f"Failed to authenticate with Spotify: {e}")
-        raise
+    return f"https://open.spotify.com/search/{encoded_query}"
 
 
-def search_songs_by_mood(mood, limit=10):
-    try:
-        sp = get_spotify_client()
-        
-        results = sp.search(q=mood, type="track", limit=limit)
-        tracks = results["tracks"]["items"]
-        
-        if not tracks:
-            logger.warning(f"No tracks found for mood: {mood}")
-            return []
-        
-        
-        track_ids = [item["id"] for item in tracks]
-        
-        
-        try:
-            features_list = sp.audio_features(track_ids)
-        except Exception as e:
-            logger.error(f"Failed to get audio features: {e}")
-            return []
-        
-        songs = []
-        
-        for item, features in zip(tracks, features_list):
-           
-            if features is None or features.get("energy") is None:
-                logger.debug(f"Skipping track {item.get('name', 'Unknown')} - no features available")
-                continue
-            
-            try:
-                song = {
-                    "name": item["name"],
-                    "artist": item["artists"][0]["name"] if item.get("artists") else "Unknown",
-                    "url": item["external_urls"]["spotify"],
-                    "energy": features["energy"],
-                    "valence": features["valence"]
-                }
-                songs.append(song)
-            except KeyError as e:
-                logger.debug(f"Missing data for track: {e}")
-                continue
-        
-        logger.info(f"Successfully fetched {len(songs)} songs for mood '{mood}'")
-        return songs  
-    
-    except Exception as e:
-        logger.error(f"SPOTIFY ERROR: {type(e).__name__}: {e}")
-        return []
-def filter_by_mood_features(songs, mood):
-    
-    filtered = []
-    
-    for song in songs:
-        if mood == "happy":
-            if song["valence"] > 0.6 and song["energy"] > 0.5:
-                filtered.append(song)
-        
-        elif mood == "sad":
-            if song["valence"] < 0.4:
-                filtered.append(song)
-        
-        elif mood == "energetic":
-            if song["energy"] > 0.7:
-                filtered.append(song)
-        
-        elif mood == "calm":
-            if song["energy"] < 0.4:
-                filtered.append(song)
-        
-        elif mood == "focused":
-            if song["energy"] < 0.5 and song["valence"] < 0.5:
-                filtered.append(song)
-    
-    return filtered
+def create_spotify_song(song_name, artist):
+    """
+    Create Spotify-style song information for a local recommendation.
+    """
+    return {
+        "name": song_name,
+        "artist": artist,
+        "url": create_spotify_search_url(song_name, artist)
+    }
+

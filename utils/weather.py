@@ -1,6 +1,9 @@
 import requests
+import os
+from dotenv import load_dotenv
 
-API_KEY = "YOUR_OPENWEATHERMAP_API_KEY"  # Replace with your OpenWeatherMap API key
+load_dotenv()
+API_KEY = os.getenv("OPENWEATHERMAP_API_KEY", "")
 
 def get_weather(city="Seoul"):
     try:

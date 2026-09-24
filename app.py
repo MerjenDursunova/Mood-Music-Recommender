@@ -1,7 +1,7 @@
 import streamlit as st
 from utils.recommender import get_similar_songs
 from utils.weather import get_weather, weather_to_mood
-from utils.spotify_api import filter_by_mood_features, search_songs_by_mood
+from utils.spotify_api import create_spotify_song
 from utils.recommender import recommend_from_cluster
 import base64
 
@@ -61,12 +61,23 @@ def get_background_image(weather):
 if weather_data:
     bg_path = get_background_image(weather_data["weather"])
 else:
-    bg_path = "assets/default.jpg"
+    bg_path = "assets/default.jpeg"
 
 bg_base64 = get_base64_image(bg_path)
 
 st.markdown(f"""
 <style>
+
+
+[data-testid="stHeader"] {{
+    display: none;
+}}
+
+
+[data-testid="stAppViewContainer"] > .main {{
+    padding-top: 0rem;
+}}
+
 .stApp {{
     background-image: url("data:image/jpg;base64,{bg_base64}");
     background-size: cover;
@@ -79,21 +90,26 @@ st.markdown(f"""
     padding: 2rem;
     border-radius: 15px;
 }}
+
 </style>
 """, unsafe_allow_html=True)
 
 if weather_data:
+    night_base64 = get_base64_image("assets/night.jpeg")
     weather = weather_data["weather"]
     temp = weather_data["temp"]
     st.markdown(f"""
     <div style="
-        background: linear-gradient(135deg, #1e3c72, #2a5298);
-        padding: 25px;
-        border-radius: 20px;
-        color: white;
-        margin-bottom: 25px;
-        box-shadow: 0 4px 20px rgba(0,0,0,0.3);
-    ">
+    background-image: url("data:image/jpeg;base64,{night_base64}");
+    background-size: cover;
+    background-position: center;
+    padding: 25px;
+    border-radius: 20px;
+    color: white;
+    margin-bottom: 25px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+    min-height: 250px;
+">
         <h2> Weather in {city}</h2>
         <h1>{weather_data['temp']}°C</h1>
         <h3>{weather_data['weather']}</h3>
@@ -106,7 +122,7 @@ if weather_data:
     suggested_mood = weather_to_mood(weather_data["weather"])
     st.markdown(f"###  Suggested Mood: **{suggested_mood}**")
 else:
-    st.error("⚠️ Could not fetch weather data. Try another city.")
+    st.error("Could not fetch weather data. Try another city.")
     suggested_mood = "happy"
 
 
@@ -118,45 +134,56 @@ mood = st.selectbox(
     index=mood_list.index(suggested_mood)
 )
 
+
 if st.button("Get Recommendations"):
+
     results = recommend_from_cluster(mood, num_songs)
-    
+
     if results.empty:
         st.write("No songs found for this mood.")
+
     else:
-        st.write("###  Your Dataset Recommendations:")
         
+        st.write("### Recommendations:")
+
         for _, row in results.iterrows():
-            st.markdown(f"""
-            <div style="
-                background-color:##FFD1DC;
-                padding:20px;
-                border-radius:15px;
-                margin-bottom:20px;
-                box-shadow: 0 4px 15px rgba(0,0,0,0.4);
-            ">
-                <h3 style="color:white;">🎵 {row['song']}</h3>
-                <p style="color:gray;">👤 {row['artist']}</p>
-            </div>
-            """, unsafe_allow_html=True)
-            
+
+            st.markdown(f"### {row['song']}")
+            st.write(f"{row['artist']}")
+
             try:
                 st.video(row["link"])
-            except:
-                st.warning("⚠️ Cannot play video here")
-                st.markdown(f"[▶️ Watch on YouTube]({row['link']})")
-            
-            st.write("---")
+            except Exception:
+                st.warning("Cannot play video here")
+                st.markdown(
+                    f"[▶ Watch on YouTube]({row['link']})"
+                )
 
-    
-    st.write("### Spotify Recommendations:")
+            st.divider()
 
-    spotify_songs = search_songs_by_mood(mood)
 
-    if not spotify_songs:
-        st.write("⚠️ Spotify temporarily unavailable (using local recommendations only)")
-    else:
-        for song in spotify_songs:
-            st.write(f"**{song['name']}** by {song['artist']}")
-            st.write(song["url"])
-            st.write("---")
+        st.write("### Listen on Spotify")
+        st.caption(
+            "Open these recommended songs directly in Spotify."
+        )
+
+        for _, row in results.iterrows():
+
+            song_name = str(row["song"])
+            artist = str(row["artist"])
+
+            spotify_song = create_spotify_song(
+                song_name,
+                artist
+            )
+
+            st.markdown(f"### {song_name}")
+            st.write(f" {artist}")
+
+            st.link_button(
+                "🎧 Open in Spotify",
+                spotify_song["url"]
+            )
+
+            st.divider()
+
